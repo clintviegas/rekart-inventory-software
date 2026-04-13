@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rekart-inventory
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ZOHO_CLIENT_ID
+        sync: false
+      - key: ZOHO_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_REFRESH_TOKEN
+        sync: false
+      - key: ZOHO_ACCOUNT_OWNER
+        value: scalify
+      - key: ZOHO_APP_NAME
+        value: rekart-inventory
+      - key: ZOHO_DOMAIN
+        value: zoho.com
