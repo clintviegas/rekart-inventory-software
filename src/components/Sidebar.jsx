@@ -1,4 +1,4 @@
-import { Package, Cpu, Warehouse, DollarSign, Wrench, ShoppingCart, BarChart2 } from 'lucide-react';
+import { Package, Cpu, Warehouse, DollarSign, Wrench, ShoppingCart, BarChart2, ClipboardList } from 'lucide-react';
 
 const SECTIONS = [
   { key: 'product',       label: 'Product Master',    icon: Package },
@@ -7,6 +7,7 @@ const SECTIONS = [
   { key: 'pricing',       label: 'Pricing & Margin',  icon: DollarSign },
   { key: 'refurbishment', label: 'Refurbishment',     icon: Wrench },
   { key: 'marketplace',   label: 'Marketplace',       icon: ShoppingCart },
+  { key: 'oms',           label: 'Order Desk',        icon: ClipboardList },
 ];
 
 export default function Sidebar({ active, onSelect, formState = {} }) {

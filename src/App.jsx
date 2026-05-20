@@ -10,6 +10,7 @@ import PricingMargin from './components/PricingMargin';
 import RefurbishmentGrade from './components/RefurbishmentGrade';
 import MarketplaceChannels from './components/MarketplaceChannels';
 import Dashboard from './components/Dashboard';
+import OrderDesk from './components/OrderDesk';
 import RecordsTable from './components/RecordsTable';
 import EditRecordModal from './components/EditRecordModal';
 import { SECTION_LABELS } from './schema';
@@ -23,8 +24,12 @@ const PANELS = {
   pricing: PricingMargin,
   refurbishment: RefurbishmentGrade,
   marketplace: MarketplaceChannels,
+  oms: OrderDesk,
   dashboard: Dashboard,
 };
+
+// Sections that manage their own create flow — App-level "Save" should be hidden.
+const SELF_MANAGED_SECTIONS = new Set(['oms', 'dashboard']);
 
 export default function App() {
   const { state, dispatch } = useFormContext();
@@ -33,7 +38,7 @@ export default function App() {
   const [editRecord, setEditRecord] = useState(null);
   const recordsRef = useRef(null);
   const ActivePanel = PANELS[state.activeSection];
-  const isDashboard = state.activeSection === 'dashboard';
+  const isSelfManaged = SELF_MANAGED_SECTIONS.has(state.activeSection);
 
   const handleSave = async () => {
     const section = state.activeSection;
@@ -106,7 +111,7 @@ export default function App() {
         <header className="top-bar">
           <div className="top-bar-left">
             <h2 className="page-title">Rekart Inventory — Zoho Creator</h2>
-            {!isDashboard && (
+            {!isSelfManaged && (
               <div className="view-toggle">
                 <button
                   className={`toggle-btn ${viewMode === 'form' ? 'active' : ''}`}
@@ -123,7 +128,7 @@ export default function App() {
               </div>
             )}
           </div>
-          {!isDashboard && viewMode === 'form' && (
+          {!isSelfManaged && viewMode === 'form' && (
             <div className="top-actions">
               <button className="btn btn-secondary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save Section'}
@@ -136,7 +141,7 @@ export default function App() {
         </header>
         <div className="panel-container">
           {/* Linked SKU banner — shown on non-product forms when a SKU is set */}
-          {!isDashboard && state.activeSection !== 'product' && state.product?.SKU && (
+          {!isSelfManaged && state.activeSection !== 'product' && state.product?.SKU && (
             <div className="linked-sku-banner">
               <span className="linked-sku-label">Working on SKU</span>
               <strong>{state.product.SKU}</strong>
@@ -145,7 +150,7 @@ export default function App() {
               )}
             </div>
           )}
-          {!isDashboard && viewMode === 'records' ? (
+          {!isSelfManaged && viewMode === 'records' ? (
             <RecordsTable
               ref={recordsRef}
               section={state.activeSection}

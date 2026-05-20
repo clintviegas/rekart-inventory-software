@@ -150,4 +150,24 @@ export const SECTION_LABELS = {
   pricing: 'Pricing & Margin',
   refurbishment: 'Refurbishment Grade',
   marketplace: 'Marketplace Channels',
+  oms: 'Order Desk',
 };
+
+/* ─── OMS reference data ───────────────────────────────────────── */
+export const SERVICE_TYPES = [
+  { key: 'Buy',       label: 'Buy',       color: '#055ed7' },
+  { key: 'Sell',      label: 'Sell',      color: '#e06c2e' },
+  { key: 'Repair',    label: 'Repair',    color: '#1e8f5a' },
+  { key: 'Trade-In',  label: 'Trade-In',  color: '#7c44c9' },
+  { key: 'Insurance', label: 'Insurance', color: '#b83232' },
+  { key: 'Rent',      label: 'Rent',      color: '#0e8f8f' },
+  { key: 'Recycle',   label: 'Recycle',   color: '#3a9e2c' },
+];
+
+export const PAYMENT_MODES = ['Cash', 'Card (POS)', 'Bank Transfer', 'Tabby / BNPL', 'Pending'];
+
+export const ORDER_STATUSES = ['Pending', 'Processing', 'Completed', 'Cancelled', 'Awaiting Parts'];
+
+export const ORDER_LOCATIONS = ['Dubai — HQ', 'Sharjah — Walk-in', 'India — Rohini', 'Field Visit'];
+
+export const TECHNICIANS = ['Assign later', 'Sameer A.', 'Priya K.', 'Anees M.'];

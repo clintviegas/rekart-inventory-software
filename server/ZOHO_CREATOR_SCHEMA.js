@@ -140,7 +140,7 @@
  *  Final_Refurb_Date   Date
  *
  *
- * FORM 6: Marketplace_Channel  (Report: Marketplace_Channel_Report)
+ * FORM 6: Marketplace_Channel  (Report: All_Marketplace_Channels)
  * ─────────────────────────────────
  *  Amazon_ASIN         Single Line
  *  Noon_SKU            Single Line
@@ -157,4 +157,60 @@
  *  Ad_Priority         Dropdown      Values: High, Medium, Low, None
  *  Top_SKU_Flag        Dropdown      Values: Yes, No
  *  Exclusive_SKU_Flag  Dropdown      Values: Yes, No
+ *
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * OMS (Offline Order Desk) — additional forms
+ * ──────────────────────────────────────────────────────────────────────
+ *
+ * FORM 7: Order_Master  (Report: All_Orders)
+ * ─────────────────────────────────
+ * Captures walk-in / field / workshop orders across all 7 service verticals.
+ *
+ *  Name                 Type          Notes
+ *  ─────────────────── ──────────── ──────────────────
+ *  Order_ID             Auto Number  Prefix: "RKT-"  (e.g. RKT-482A1C)
+ *  Customer_Name        Single Line
+ *  Customer_Phone       Phone
+ *  Customer_Email       Email        Optional
+ *  Service_Type         Dropdown     Values: Buy, Sell, Repair, Trade-In, Insurance, Rent, Recycle
+ *  Product_SKU          Single Line  Optional — set when product picker used; links to Product_Master.SKU
+ *  Device_Description   Single Line  Free-text fallback / additional detail
+ *  Amount               Decimal      AED
+ *  Payment_Mode         Dropdown     Values: Cash, Card (POS), Bank Transfer, Tabby / BNPL, Pending
+ *  Status               Dropdown     Values: Pending, Processing, Completed, Cancelled, Awaiting Parts
+ *  Order_Date           Date         Defaults to today
+ *  Location             Dropdown     Values: Dubai — HQ, Sharjah — Walk-in, India — Rohini, Field Visit
+ *  Handled_By           Single Line  Staff name
+ *  Notes                Multi Line
+ *  Fault_Description    Multi Line   Repair only
+ *  Estimated_Delivery   Date         Repair only
+ *  Technician           Single Line  Repair only
+ *  Trade_In_Value       Decimal      Trade-In only
+ *  Rental_Start_Date    Date         Rent only
+ *  Rental_End_Date      Date         Rent only
+ *  Stock_Adjusted       Dropdown     Values: Yes, No — set by backend after inventory mutation
+ *
+ *
+ * FORM 8: Customer_Master  (Report: All_Customers)
+ * ─────────────────────────────────
+ * Customers are de-duplicated by phone number — the backend looks up by phone
+ * before creating a new record.
+ *
+ *  Customer_Name        Single Line
+ *  Phone                Phone           Treated as unique key by OMS backend
+ *  Email                Email
+ *  Address              Multi Line
+ *  City                 Single Line
+ *  Loyalty_Tier         Dropdown        Values: New, Bronze, Silver, Gold, Platinum
+ *  Notes                Multi Line
+ *
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * REQUIRED ADDITION to Inventory_Stock (FORM 3)
+ * ──────────────────────────────────────────────────────────────────────
+ * For stock decrement on order creation to work, Inventory_Stock must
+ * carry the product SKU so the backend can find the row to update:
+ *
+ *  SKU                  Single Line     Must match Product_Master.SKU
  */
