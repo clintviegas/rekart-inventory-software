@@ -20,6 +20,11 @@ export async function updateOrder(id, payload) {
   return res.data;
 }
 
+export async function deleteOrder(id) {
+  const res = await api.delete(`/order/${id}`);
+  return res.data;
+}
+
 export async function searchProducts(q) {
   const res = await api.get('/products/search', { params: { q, limit: 20 } });
   return res.data;

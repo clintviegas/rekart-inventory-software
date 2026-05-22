@@ -1,57 +1,29 @@
 /*
- * OMS (Offline Order Desk) routes
- * ────────────────────────────────
- * - POST   /api/oms/order             create order + decrement stock
- * - GET    /api/oms/orders            list orders (search/filter)
- * - PATCH  /api/oms/order/:id         update order (status, fields)
- * - GET    /api/oms/products/search?q list products joined with inventory
- * - GET    /api/oms/stats             dashboard stats
+ * OMS (Offline Order Desk) routes — MongoDB backed.
  *
- * Backed by Zoho Creator forms Order_Master, Customer_Master, plus the
- * existing Product_Master and Inventory_Stock. See ZOHO_CREATOR_SCHEMA.js.
+ * Endpoints are preserved from the original Zoho-backed version so the
+ * existing frontend (src/api/omsApi.js, OrderDesk.jsx) works unchanged.
+ *
+ *   POST   /api/oms/order             create order + adjust stock
+ *   GET    /api/oms/orders            list orders (search/filter)
+ *   PATCH  /api/oms/order/:id         update order
+ *   GET    /api/oms/products/search   product picker (joined w/ inventory)
+ *   GET    /api/oms/stats             dashboard stats
  */
 const express = require('express');
 const router = express.Router();
-const { addRecord, getRecords, updateRecord } = require('../zohoCreator.cjs');
 
-const FORMS = {
-  order:    { form: 'Order_Master',     report: 'All_Orders' },
-  customer: { form: 'Customer_Master',  report: 'All_Customers' },
-  product:  { form: 'Product_Master',   report: 'Product_Master_Report' },
-  inventory:{ form: 'Inventory_Stock',  report: 'Inventory_Stock_Report' },
-};
+const { Order, Customer, Product, Inventory } = require('../models.cjs');
 
-// Service types that draw stock OUT of available inventory (we are selling/lending).
 const STOCK_OUT_SERVICES = new Set(['Buy', 'Rent']);
-// Service types that flow INTO our repair queue.
 const REPAIR_SERVICES = new Set(['Repair']);
-
-async function findCustomerByPhone(phone) {
-  if (!phone) return null;
-  const safe = String(phone).replace(/"/g, '');
-  const criteria = `Phone == "${safe}"`;
-  try {
-    const res = await getRecords(FORMS.customer.report, criteria, 1, 1);
-    return res?.data?.[0] || null;
-  } catch (_e) {
-    return null;
-  }
-}
-
-async function findInventoryBySku(sku) {
-  if (!sku) return null;
-  const safe = String(sku).replace(/"/g, '');
-  const criteria = `SKU == "${safe}"`;
-  try {
-    const res = await getRecords(FORMS.inventory.report, criteria, 1, 1);
-    return res?.data?.[0] || null;
-  } catch (_e) {
-    return null;
-  }
-}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // ─── CREATE ORDER ─────────────────────────────────────────────
@@ -70,63 +42,60 @@ router.post('/order', async (req, res) => {
   }
 
   try {
-    // 1. Upsert customer by phone
+    // 1. Upsert customer by phone (best-effort)
     let customerRef = null;
     if (Customer_Phone) {
-      const existing = await findCustomerByPhone(Customer_Phone);
-      if (existing) {
-        customerRef = existing.ID;
-      } else {
-        const created = await addRecord(FORMS.customer.form, {
-          Customer_Name,
-          Phone: Customer_Phone,
-          Email: Customer_Email || '',
-          Loyalty_Tier: 'New',
-        });
-        customerRef = created?.data?.ID || null;
-      }
+      const found = await Customer.findOneAndUpdate(
+        { Phone: Customer_Phone },
+        {
+          $setOnInsert: {
+            Customer_Name,
+            Phone: Customer_Phone,
+            Email: Customer_Email || '',
+            Loyalty_Tier: 'New',
+          },
+        },
+        { upsert: true, returnDocument: 'after' },
+      );
+      customerRef = found?._id || null;
     }
 
-    // 2. Apply stock movement (best-effort — order is still recorded if this fails)
+    // 2. Stock movement (best-effort — order is still recorded if this fails)
     let stockAdjusted = 'No';
     let stockMessage = null;
     if (Product_SKU) {
       try {
-        const inv = await findInventoryBySku(Product_SKU);
+        const inv = await Inventory.findOne({ SKU: Product_SKU });
         if (inv) {
           if (STOCK_OUT_SERVICES.has(Service_Type)) {
-            const avail = Number(inv.Available_Stock || 0);
-            const reserved = Number(inv.Reserved_Stock || 0);
-            if (avail >= 1) {
-              await updateRecord(FORMS.inventory.report, inv.ID, {
-                Available_Stock: avail - 1,
-                Reserved_Stock: reserved + 1,
-                Last_Outward_Date: todayISO(),
-              });
+            if ((inv.Available_Stock || 0) >= 1) {
+              inv.Available_Stock = (inv.Available_Stock || 0) - 1;
+              inv.Reserved_Stock = (inv.Reserved_Stock || 0) + 1;
+              inv.Last_Outward_Date = new Date();
+              await inv.save();
               stockAdjusted = 'Yes';
             } else {
               stockMessage = `No available stock for SKU ${Product_SKU} (order still recorded)`;
             }
           } else if (REPAIR_SERVICES.has(Service_Type)) {
-            const repair = Number(inv.Repair_Stock || 0);
-            await updateRecord(FORMS.inventory.report, inv.ID, {
-              Repair_Stock: repair + 1,
-            });
+            inv.Repair_Stock = (inv.Repair_Stock || 0) + 1;
+            await inv.save();
             stockAdjusted = 'Yes';
           }
         } else {
-          stockMessage = `No Inventory_Stock row found for SKU ${Product_SKU}`;
+          stockMessage = `No Inventory row found for SKU ${Product_SKU}`;
         }
       } catch (e) {
         stockMessage = `Stock update failed: ${e.message}`;
       }
     }
 
-    // 3. Create the order record
-    const orderPayload = {
+    // 3. Create the order
+    const orderDoc = {
       Customer_Name,
       Customer_Phone: Customer_Phone || '',
       Customer_Email: Customer_Email || '',
+      Customer_Ref: customerRef,
       Service_Type,
       Product_SKU: Product_SKU || '',
       Device_Description: Device_Description || '',
@@ -140,19 +109,19 @@ router.post('/order', async (req, res) => {
       Stock_Adjusted: stockAdjusted,
     };
     if (Service_Type === 'Repair') {
-      orderPayload.Fault_Description = Fault_Description || '';
-      orderPayload.Estimated_Delivery = Estimated_Delivery || '';
-      orderPayload.Technician = Technician || '';
+      orderDoc.Fault_Description = Fault_Description || '';
+      orderDoc.Estimated_Delivery = Estimated_Delivery || '';
+      orderDoc.Technician = Technician || '';
     }
-    if (Service_Type === 'Trade-In' && Trade_In_Value != null) {
-      orderPayload.Trade_In_Value = Number(Trade_In_Value);
+    if (Service_Type === 'Trade-In' && Trade_In_Value != null && Trade_In_Value !== '') {
+      orderDoc.Trade_In_Value = Number(Trade_In_Value);
     }
     if (Service_Type === 'Rent') {
-      orderPayload.Rental_Start_Date = Rental_Start_Date || '';
-      orderPayload.Rental_End_Date = Rental_End_Date || '';
+      orderDoc.Rental_Start_Date = Rental_Start_Date || '';
+      orderDoc.Rental_End_Date = Rental_End_Date || '';
     }
 
-    const created = await addRecord(FORMS.order.form, orderPayload);
+    const created = await Order.create(orderDoc);
 
     res.json({
       order: created,
@@ -170,24 +139,46 @@ router.post('/order', async (req, res) => {
 router.get('/orders', async (req, res) => {
   try {
     const { q, service, status, location, limit, offset } = req.query;
-    const parts = [];
-    if (service && service !== 'All') parts.push(`Service_Type == "${String(service).replace(/"/g, '')}"`);
-    if (status && status !== 'All') parts.push(`Status == "${String(status).replace(/"/g, '')}"`);
-    if (location && location !== 'All') parts.push(`Location == "${String(location).replace(/"/g, '')}"`);
+    const filter = {};
+    if (service && service !== 'All') filter.Service_Type = service;
+    if (status && status !== 'All') filter.Status = status;
+    if (location && location !== 'All') filter.Location = location;
     if (q) {
-      const safe = String(q).replace(/"/g, '');
-      parts.push(`(Customer_Name.contains("${safe}") || Customer_Phone.contains("${safe}") || Device_Description.contains("${safe}") || Order_ID.contains("${safe}"))`);
+      const rx = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [
+        { Customer_Name: rx },
+        { Customer_Phone: rx },
+        { Device_Description: rx },
+        { Order_ID: rx },
+        { Product_SKU: rx },
+      ];
     }
-    const criteria = parts.join(' && ');
-    const result = await getRecords(
-      FORMS.order.report,
-      criteria,
-      Number(limit) || 100,
-      Number(offset) || 1,
-    );
-    res.json(result);
+
+    const lim = Math.min(Number(limit) || 100, 500);
+    const skip = Math.max((Number(offset) || 1) - 1, 0);
+
+    const [rows, count] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(lim).lean(),
+      Order.countDocuments(filter),
+    ]);
+
+    // Frontend reads `ID` and `Added_Time` (legacy Zoho field names) so
+    // we mirror them here for back-compat.
+    const data = rows.map((r) => ({ ...r, ID: String(r._id), Added_Time: r.Added_Time || r.createdAt }));
+    res.json({ data, count });
   } catch (err) {
     console.error('OMS list orders error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET ONE ORDER ────────────────────────────────────────────
+router.get('/order/:id', async (req, res) => {
+  try {
+    const row = await Order.findById(req.params.id).lean();
+    if (!row) return res.status(404).json({ error: 'Order not found' });
+    res.json({ ...row, ID: String(row._id) });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -195,46 +186,61 @@ router.get('/orders', async (req, res) => {
 // ─── UPDATE ORDER ─────────────────────────────────────────────
 router.patch('/order/:id', async (req, res) => {
   try {
-    const result = await updateRecord(FORMS.order.report, req.params.id, req.body);
-    res.json(result);
+    const updated = await Order.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).lean();
+    if (!updated) return res.status(404).json({ error: 'Order not found' });
+    res.json({ ...updated, ID: String(updated._id) });
   } catch (err) {
     console.error('OMS update order error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+// ─── DELETE ORDER ─────────────────────────────────────────────
+router.delete('/order/:id', async (req, res) => {
+  try {
+    await Order.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── PRODUCT SEARCH (for picker) ──────────────────────────────
-// Returns products joined with their inventory row (Available_Stock, Warehouse).
 router.get('/products/search', async (req, res) => {
   try {
     const { q, limit } = req.query;
-    const safe = String(q || '').replace(/"/g, '');
-    const criteria = safe
-      ? `(SKU.contains("${safe}") || Product_Name.contains("${safe}") || Brand.contains("${safe}") || Barcode == "${safe}")`
-      : '';
-    const products = await getRecords(
-      FORMS.product.report,
-      criteria,
-      Number(limit) || 20,
-      1,
-    );
-    const rows = products?.data || [];
+    const lim = Math.min(Number(limit) || 20, 100);
 
-    // Best-effort enrichment with inventory. One round-trip per result is fine for limit=20.
-    const enriched = await Promise.all(rows.map(async (p) => {
-      const inv = await findInventoryBySku(p.SKU);
+    let products = [];
+    if (q && String(q).trim()) {
+      const rx = new RegExp(escapeRegex(String(q).trim()), 'i');
+      products = await Product.find({
+        $or: [{ SKU: rx }, { Product_Name: rx }, { Brand1: rx }, { Barcode: rx }, { Model_Number: rx }],
+      })
+        .limit(lim)
+        .lean();
+    } else {
+      products = await Product.find({}).limit(lim).lean();
+    }
+
+    const skus = products.map((p) => p.SKU).filter(Boolean);
+    const invRows = await Inventory.find({ SKU: { $in: skus } }).lean();
+    const invBySku = Object.fromEntries(invRows.map((i) => [i.SKU, i]));
+
+    const enriched = products.map((p) => {
+      const inv = invBySku[p.SKU];
       return {
-        id: p.ID,
+        id: String(p._id),
         sku: p.SKU,
         name: p.Product_Name,
-        brand: p.Brand1 || p.Brand,
+        brand: p.Brand1,
         storage: p.Storage_RAM,
         color: p.Color,
         productType: p.Product_Type,
         available: inv ? Number(inv.Available_Stock || 0) : null,
         warehouse: inv?.Warehouse_Location || null,
       };
-    }));
+    });
 
     res.json({ data: enriched });
   } catch (err) {
@@ -247,14 +253,16 @@ router.get('/products/search', async (req, res) => {
 router.get('/stats', async (_req, res) => {
   try {
     const today = todayISO();
-    const orders = await getRecords(FORMS.order.report, '', 500, 1);
-    const data = orders?.data || [];
-    const total = data.length;
-    const pending = data.filter((o) => o.Status === 'Pending').length;
-    const completedToday = data.filter((o) => o.Status === 'Completed' && (o.Order_Date === today || String(o.Added_Time || '').startsWith(today))).length;
-    const revenue = data
-      .filter((o) => o.Status === 'Completed')
-      .reduce((sum, o) => sum + Number(o.Amount || 0), 0);
+    const [total, pending, completedToday, revenueAgg] = await Promise.all([
+      Order.countDocuments({}),
+      Order.countDocuments({ Status: 'Pending' }),
+      Order.countDocuments({ Status: 'Completed', Order_Date: today }),
+      Order.aggregate([
+        { $match: { Status: 'Completed' } },
+        { $group: { _id: null, sum: { $sum: '$Amount' } } },
+      ]),
+    ]);
+    const revenue = revenueAgg[0]?.sum || 0;
     res.json({ total, pending, completedToday, revenue });
   } catch (err) {
     console.error('OMS stats error:', err.message);

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   FileText, DollarSign, Clock, CheckCircle,
-  ShoppingCart, Tag, Wrench, RefreshCw, Shield, Calendar, Recycle, Plus, Download, Search,
+  ShoppingCart, Tag, Wrench, RefreshCw, Shield, Calendar, Recycle, Plus, Download, Search, Eye, Trash2,
 } from 'lucide-react';
 import {
   SERVICE_TYPES, PAYMENT_MODES, ORDER_STATUSES, ORDER_LOCATIONS, TECHNICIANS,
 } from '../schema';
-import { createOrder, fetchOrders, fetchStats } from '../api/omsApi';
+import { createOrder, fetchOrders, fetchStats, deleteOrder } from '../api/omsApi';
 import ProductPicker from './ProductPicker';
+import OrderDetailModal from './OrderDetailModal';
 
 const SERVICE_ICONS = {
   Buy: ShoppingCart,
@@ -49,6 +50,7 @@ export default function OrderDesk() {
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [filters, setFilters] = useState({ q: '', service: 'All', status: 'All', location: 'All' });
+  const [openOrder, setOpenOrder] = useState(null);
 
   const [stats, setStats] = useState({ total: 0, revenue: 0, pending: 0, completedToday: 0 });
 
@@ -115,6 +117,17 @@ export default function OrderDesk() {
     a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const removeOrder = async (o) => {
+    if (!window.confirm(`Delete order ${o.Order_ID || o.ID}? This cannot be undone.`)) return;
+    try {
+      await deleteOrder(o.ID || o._id);
+      toast.success('Order deleted');
+      refreshAll();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    }
   };
 
   const isRepair = form.Service_Type === 'Repair';
@@ -312,14 +325,15 @@ export default function OrderDesk() {
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Date</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {loadingOrders && (
-                  <tr><td colSpan={7} className="oms-empty">Loading…</td></tr>
+                  <tr><td colSpan={8} className="oms-empty">Loading…</td></tr>
                 )}
                 {!loadingOrders && orderRows.length === 0 && (
-                  <tr><td colSpan={7} className="oms-empty">No orders yet — punch your first one →</td></tr>
+                  <tr><td colSpan={8} className="oms-empty">No orders yet — punch your first one →</td></tr>
                 )}
                 {!loadingOrders && orderRows.map((o) => {
                   const svc = SERVICE_TYPES.find((s) => s.key === o.Service_Type);
@@ -338,11 +352,21 @@ export default function OrderDesk() {
                       <td className="oms-device-cell">{o.Device_Description || o.Product_SKU}</td>
                       <td className="oms-amount">AED {Number(o.Amount || 0).toLocaleString()}</td>
                       <td>
-                        <span className={`oms-status oms-status-${String(o.Status || '').replace(/\s+/g, '')}`}>
+                        <span className={`oms-status oms-status-${String(o.Status || '').replace(/[\s-]+/g, '')}`}>
                           {o.Status}
                         </span>
                       </td>
                       <td className="oms-date">{o.Order_Date || (o.Added_Time || '').slice(0, 10)}</td>
+                      <td>
+                        <div className="oms-row-actions">
+                          <button className="oms-icon-btn" title="View / Edit" onClick={() => setOpenOrder(o)}>
+                            <Eye size={13} />
+                          </button>
+                          <button className="oms-icon-btn danger" title="Delete" onClick={() => removeOrder(o)}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -351,6 +375,14 @@ export default function OrderDesk() {
           </div>
         </div>
       </div>
+
+      {openOrder && (
+        <OrderDetailModal
+          order={openOrder}
+          onClose={() => setOpenOrder(null)}
+          onSaved={refreshAll}
+        />
+      )}
     </div>
   );
 }

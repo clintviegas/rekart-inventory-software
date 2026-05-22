@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { FileText, List } from 'lucide-react';
 import { useFormContext } from './context/FormContext';
+import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import ProductMaster from './components/ProductMaster';
 import DeviceTracking from './components/DeviceTracking';
@@ -33,6 +34,7 @@ const SELF_MANAGED_SECTIONS = new Set(['oms', 'dashboard']);
 
 export default function App() {
   const { state, dispatch } = useFormContext();
+  const { user, logout } = useAuth();
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState('form');
   const [editRecord, setEditRecord] = useState(null);
@@ -52,7 +54,7 @@ export default function App() {
     setSaving(true);
     try {
       await createRecord(section, data);
-      toast.success(`${SECTION_LABELS[section]} record saved to Zoho Creator!`);
+      toast.success(`${SECTION_LABELS[section]} record saved to database!`);
       dispatch({ type: 'RESET_FORM', section });
     } catch (err) {
       toast.error(err.response?.data?.error || err.message);
@@ -88,7 +90,7 @@ export default function App() {
 
     setSaving(false);
     if (failed === 0) {
-      toast.success(`All ${success} section(s) saved to Zoho Creator!`);
+      toast.success(`All ${success} section(s) saved to database!`);
     } else {
       toast.error(`${success} saved, ${failed} failed. Check console.`);
     }
@@ -110,7 +112,7 @@ export default function App() {
       <main className="main-content">
         <header className="top-bar">
           <div className="top-bar-left">
-            <h2 className="page-title">Rekart Inventory — Zoho Creator</h2>
+            <h2 className="page-title">Rekart OMS</h2>
             {!isSelfManaged && (
               <div className="view-toggle">
                 <button
@@ -128,16 +130,27 @@ export default function App() {
               </div>
             )}
           </div>
-          {!isSelfManaged && viewMode === 'form' && (
-            <div className="top-actions">
-              <button className="btn btn-secondary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save Section'}
-              </button>
-              <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
-                {saving ? 'Saving…' : 'Save All'}
-              </button>
-            </div>
-          )}
+          <div className="top-actions">
+            {!isSelfManaged && viewMode === 'form' && (
+              <>
+                <button className="btn btn-secondary" onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save Section'}
+                </button>
+                <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save All'}
+                </button>
+              </>
+            )}
+            {user && (
+              <div className="user-chip" title={user.email}>
+                <span className="user-chip-avatar">
+                  {(user.name || user.email || '?').slice(0, 1).toUpperCase()}
+                </span>
+                <span className="user-chip-name">{user.name || user.email}</span>
+                <button className="user-chip-logout" onClick={logout}>Sign out</button>
+              </div>
+            )}
+          </div>
         </header>
         <div className="panel-container">
           {/* Linked SKU banner — shown on non-product forms when a SKU is set */}

@@ -1,16 +1,55 @@
-# React + Vite
+# Rekart OMS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Order management system for refurbished-laptop retail. React + Vite frontend, Express + MongoDB backend, deployed as a single Vercel project.
 
-Currently, two official plugins are available:
+7 service verticals: **Buy, Sell, Repair, Trade-In, Insurance, Rent, Recycle**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quick start
 
-## React Compiler
+```bash
+npm install
+cp .env.example .env       # fill in MONGODB_URI and JWT_SECRET
+npm run seed               # imports 43 laptops from scripts/PRICELIST.xlsx
+npm run dev:all            # Vite + Express on :5173 and :3001
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+First visit creates the admin account.
 
-## Expanding the ESLint configuration
+## Deploying
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See [DEPLOY.md](./DEPLOY.md) for the full Atlas + Vercel walkthrough.
+
+## Stack
+
+- **Frontend:** React 19, Vite 8, lucide-react, react-hot-toast
+- **API:** Express 5, Mongoose 9, JWT cookies (bcryptjs)
+- **DB:** MongoDB Atlas (free M0 tier is plenty)
+- **Host:** Vercel (frontend as static, API as serverless function)
+
+## Project layout
+
+```
+api/index.cjs                 Vercel serverless entrypoint
+server/
+  app.cjs                     Express app (mounted by Vercel + local server)
+  index.cjs                   local server entry
+  db.cjs, auth.cjs, models.cjs
+  routes/
+    auth.cjs                  signup/login/logout/me
+    zoho.cjs                  generic CRUD for the 6 inventory sections
+    oms.cjs                   Order Desk
+scripts/
+  seed-pricelist.cjs          imports PRICELIST.xlsx
+  PRICELIST.xlsx              source pricing data
+src/
+  main.jsx, App.jsx
+  context/  AuthContext, FormContext
+  components/
+    Login.jsx, AuthGate.jsx
+    OrderDesk.jsx, OrderDetailModal.jsx, ProductPicker.jsx
+    ProductMaster.jsx, DeviceTracking.jsx, InventoryStock.jsx,
+    PricingMargin.jsx, RefurbishmentGrade.jsx, MarketplaceChannels.jsx,
+    Dashboard.jsx, RecordsTable.jsx, EditRecordModal.jsx, Sidebar.jsx
+  api/  authApi.js, omsApi.js, zohoApi.js
+  schema.js                   field definitions for all sections
+```
