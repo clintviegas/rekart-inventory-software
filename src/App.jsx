@@ -4,14 +4,24 @@ import { FileText, List } from 'lucide-react';
 import { useFormContext } from './context/FormContext';
 import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
-import ProductMaster from './components/ProductMaster';
-import DeviceTracking from './components/DeviceTracking';
+
+// Operations
+import OrderDesk from './components/OrderDesk';
+import WarehouseQueue from './components/WarehouseQueue';
+
+// Catalogue
+import ProductCatalogue from './components/ProductCatalogue';
 import InventoryStock from './components/InventoryStock';
+
+// Advanced (legacy form-based sections — still accessible)
+import DeviceTracking from './components/DeviceTracking';
 import PricingMargin from './components/PricingMargin';
 import RefurbishmentGrade from './components/RefurbishmentGrade';
 import MarketplaceChannels from './components/MarketplaceChannels';
+
+// Reports / Dashboard
 import Dashboard from './components/Dashboard';
-import OrderDesk from './components/OrderDesk';
+
 import RecordsTable from './components/RecordsTable';
 import EditRecordModal from './components/EditRecordModal';
 import { SECTION_LABELS } from './schema';
@@ -19,18 +29,26 @@ import { createRecord } from './api/zohoApi';
 import './App.css';
 
 const PANELS = {
-  product: ProductMaster,
-  device: DeviceTracking,
+  // Operations
+  oms:       OrderDesk,
+  warehouse: WarehouseQueue,
+
+  // Catalogue — self-managed
+  products:  ProductCatalogue,
   inventory: InventoryStock,
-  pricing: PricingMargin,
+
+  // Advanced (legacy form views)
+  device:        DeviceTracking,
+  pricing:       PricingMargin,
   refurbishment: RefurbishmentGrade,
-  marketplace: MarketplaceChannels,
-  oms: OrderDesk,
+  marketplace:   MarketplaceChannels,
+
+  // Reports
   dashboard: Dashboard,
 };
 
-// Sections that manage their own create flow — App-level "Save" should be hidden.
-const SELF_MANAGED_SECTIONS = new Set(['oms', 'dashboard']);
+// Sections that manage their own UI — no top-bar Save/Records toggle needed.
+const SELF_MANAGED_SECTIONS = new Set(['oms', 'dashboard', 'warehouse', 'products']);
 
 export default function App() {
   const { state, dispatch } = useFormContext();
@@ -39,7 +57,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('form');
   const [editRecord, setEditRecord] = useState(null);
   const recordsRef = useRef(null);
-  const ActivePanel = PANELS[state.activeSection];
+  const ActivePanel = PANELS[state.activeSection] || OrderDesk;
   const isSelfManaged = SELF_MANAGED_SECTIONS.has(state.activeSection);
 
   const handleSave = async () => {
@@ -54,45 +72,12 @@ export default function App() {
     setSaving(true);
     try {
       await createRecord(section, data);
-      toast.success(`${SECTION_LABELS[section]} record saved to database!`);
+      toast.success(`${SECTION_LABELS[section] || section} record saved!`);
       dispatch({ type: 'RESET_FORM', section });
     } catch (err) {
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSaveAll = async () => {
-    const sections = Object.keys(PANELS).filter(k => k !== 'dashboard');
-    const filled = sections.filter(
-      (s) => state[s] && Object.keys(state[s]).length > 0
-    );
-
-    if (filled.length === 0) {
-      toast.error('No data to save. Fill in at least one section.');
-      return;
-    }
-
-    setSaving(true);
-    let success = 0;
-    let failed = 0;
-
-    for (const section of filled) {
-      try {
-        await createRecord(section, state[section]);
-        dispatch({ type: 'RESET_FORM', section });
-        success++;
-      } catch {
-        failed++;
-      }
-    }
-
-    setSaving(false);
-    if (failed === 0) {
-      toast.success(`All ${success} section(s) saved to database!`);
-    } else {
-      toast.error(`${success} saved, ${failed} failed. Check console.`);
     }
   };
 
@@ -107,7 +92,6 @@ export default function App() {
       <Sidebar
         active={state.activeSection}
         onSelect={handleSectionChange}
-        formState={state}
       />
       <main className="main-content">
         <header className="top-bar">
@@ -132,14 +116,9 @@ export default function App() {
           </div>
           <div className="top-actions">
             {!isSelfManaged && viewMode === 'form' && (
-              <>
-                <button className="btn btn-secondary" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save Section'}
-                </button>
-                <button className="btn btn-primary" onClick={handleSaveAll} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save All'}
-                </button>
-              </>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
             )}
             {user && (
               <div className="user-chip" title={user.email}>
@@ -153,16 +132,6 @@ export default function App() {
           </div>
         </header>
         <div className="panel-container">
-          {/* Linked SKU banner — shown on non-product forms when a SKU is set */}
-          {!isSelfManaged && state.activeSection !== 'product' && state.product?.SKU && (
-            <div className="linked-sku-banner">
-              <span className="linked-sku-label">Working on SKU</span>
-              <strong>{state.product.SKU}</strong>
-              {state.product?.Product_Name && (
-                <span className="linked-sku-name">— {state.product.Product_Name}</span>
-              )}
-            </div>
-          )}
           {!isSelfManaged && viewMode === 'records' ? (
             <RecordsTable
               ref={recordsRef}
@@ -175,7 +144,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Edit modal */}
       {editRecord && (
         <EditRecordModal
           section={state.activeSection}

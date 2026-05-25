@@ -34,3 +34,13 @@ export async function fetchStats() {
   const res = await api.get('/stats');
   return res.data;
 }
+
+export async function fetchWarehouseQueue() {
+  const res = await api.get('/warehouse-queue');
+  return res.data;
+}
+
+export async function dispatchOrder(id) {
+  const res = await api.patch(`/order/${id}`, { Status: 'Processing', Dispatched_At: new Date().toISOString() });
+  return res.data;
+}

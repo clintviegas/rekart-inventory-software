@@ -81,6 +81,8 @@ export default function OrderDesk() {
       ...f,
       Product_SKU: p?.sku || '',
       Device_Description: p ? [p.name, p.storage, p.color].filter(Boolean).join(' ') : f.Device_Description,
+      // Auto-fill retail price if the field is empty
+      Amount: f.Amount ? f.Amount : (p?.retailPrice != null ? String(p.retailPrice) : f.Amount),
     }));
   };
 

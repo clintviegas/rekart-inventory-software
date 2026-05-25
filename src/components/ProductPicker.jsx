@@ -96,9 +96,12 @@ export default function ProductPicker({ value, onChange, placeholder = 'Search b
                   {r.color && <span>· {r.color}</span>}
                 </div>
               </div>
-              <div className="picker-item-stock">
+              <div className="picker-item-right">
+                {r.retailPrice != null && (
+                  <span className="picker-price">AED {Number(r.retailPrice).toLocaleString()}</span>
+                )}
                 {r.available == null ? (
-                  <span className="picker-stock-none">no stock row</span>
+                  <span className="picker-stock-none">no stock</span>
                 ) : (
                   <span className={r.available > 0 ? 'picker-stock-ok' : 'picker-stock-out'}>
                     {r.available} avail

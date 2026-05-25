@@ -13,7 +13,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { Order, Customer, Product, Inventory } = require('../models.cjs');
+const { Order, Customer, Product, Inventory, Pricing } = require('../models.cjs');
 
 const STOCK_OUT_SERVICES = new Set(['Buy', 'Rent']);
 const REPAIR_SERVICES = new Set(['Repair']);
@@ -224,11 +224,16 @@ router.get('/products/search', async (req, res) => {
     }
 
     const skus = products.map((p) => p.SKU).filter(Boolean);
-    const invRows = await Inventory.find({ SKU: { $in: skus } }).lean();
+    const [invRows, priceRows] = await Promise.all([
+      Inventory.find({ SKU: { $in: skus } }).lean(),
+      Pricing.find({ SKU: { $in: skus } }).lean(),
+    ]);
     const invBySku = Object.fromEntries(invRows.map((i) => [i.SKU, i]));
+    const priceBySku = Object.fromEntries(priceRows.map((p) => [p.SKU, p]));
 
     const enriched = products.map((p) => {
       const inv = invBySku[p.SKU];
+      const pricing = priceBySku[p.SKU];
       return {
         id: String(p._id),
         sku: p.SKU,
@@ -239,12 +244,33 @@ router.get('/products/search', async (req, res) => {
         productType: p.Product_Type,
         available: inv ? Number(inv.Available_Stock || 0) : null,
         warehouse: inv?.Warehouse_Location || null,
+        retailPrice: pricing?.Retail_Selling_Price ?? null,
+        wholesalePrice: pricing?.Wholesale_Price ?? null,
       };
     });
 
     res.json({ data: enriched });
   } catch (err) {
     console.error('OMS product search error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── WAREHOUSE QUEUE ─────────────────────────────────────────
+// Returns Pending/Processing orders for Buy & Rent service types.
+// Sharjah warehouse staff use this screen to fulfil outbound orders.
+router.get('/warehouse-queue', async (req, res) => {
+  try {
+    const rows = await Order.find({
+      Service_Type: { $in: ['Buy', 'Rent'] },
+      Status: { $in: ['Pending', 'Processing'] },
+    })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const data = rows.map((r) => ({ ...r, ID: String(r._id) }));
+    res.json({ data });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

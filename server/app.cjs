@@ -9,6 +9,7 @@ const { requireAuth } = require('./auth.cjs');
 const zohoRoutes = require('./routes/zoho.cjs');
 const omsRoutes = require('./routes/oms.cjs');
 const authRoutes = require('./routes/auth.cjs');
+const productsRoutes = require('./routes/products.cjs');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 // Protected — every other /api/* route requires a valid session cookie.
 app.use('/api/zoho', requireAuth, zohoRoutes);
 app.use('/api/oms', requireAuth, omsRoutes);
+app.use('/api/products', requireAuth, productsRoutes);
 
 // Final error handler so DB connection failures don't hang.
 app.use((err, _req, res, _next) => {
