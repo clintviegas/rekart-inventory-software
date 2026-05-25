@@ -1613,3 +1613,66 @@
   color: #0d1f3c;
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════════════
+   WAREHOUSE NOTIFY CARD (Order Desk — after Buy/Rent)
+   ═══════════════════════════════════════════════════════ */
+.wh-notify-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-left: 4px solid #16a34a;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  animation: slideDown 0.25s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.wh-notify-icon { font-size: 22px; flex-shrink: 0; }
+.wh-notify-body { flex: 1; min-width: 0; }
+.wh-notify-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #14532d;
+}
+.wh-notify-title span { color: #16a34a; font-family: monospace; }
+.wh-notify-detail {
+  font-size: 12px;
+  color: #4b5563;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #25d366;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-whatsapp:hover { background: #1da851; }
+.wh-notify-dismiss {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.wh-notify-dismiss:hover { color: #374151; background: #e5e7eb; }

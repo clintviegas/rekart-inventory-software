@@ -171,3 +171,8 @@ export const ORDER_STATUSES = ['Pending', 'Processing', 'Completed', 'Cancelled'
 export const ORDER_LOCATIONS = ['Dubai — HQ', 'Sharjah — Walk-in', 'India — Rohini', 'Field Visit'];
 
 export const TECHNICIANS = ['Assign later', 'Sameer A.', 'Priya K.', 'Anees M.'];
+
+// WhatsApp number for the Sharjah warehouse team.
+// Format: country code + number, no + or spaces. E.g. 971501234567
+// Update this to the warehouse manager's actual WhatsApp number.
+export const WAREHOUSE_WHATSAPP = '971500000000';

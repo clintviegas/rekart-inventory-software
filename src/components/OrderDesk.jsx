@@ -3,9 +3,11 @@ import toast from 'react-hot-toast';
 import {
   FileText, DollarSign, Clock, CheckCircle,
   ShoppingCart, Tag, Wrench, RefreshCw, Shield, Calendar, Recycle, Plus, Download, Search, Eye, Trash2,
+  MessageCircle, X,
 } from 'lucide-react';
 import {
   SERVICE_TYPES, PAYMENT_MODES, ORDER_STATUSES, ORDER_LOCATIONS, TECHNICIANS,
+  WAREHOUSE_WHATSAPP,
 } from '../schema';
 import { createOrder, fetchOrders, fetchStats, deleteOrder } from '../api/omsApi';
 import ProductPicker from './ProductPicker';
@@ -42,10 +44,33 @@ const EMPTY_FORM = {
   Rental_End_Date: '',
 };
 
+// Needs Buy or Rent to trigger warehouse dispatch
+const WAREHOUSE_SERVICES = new Set(['Buy', 'Rent']);
+
+function buildWhatsAppLink(order) {
+  const lines = [
+    `🔔 *New Order — ${order.Order_ID || order.ID}*`,
+    '',
+    `*Service:* ${order.Service_Type}`,
+    `*Customer:* ${order.Customer_Name}`,
+    order.Customer_Phone ? `*Phone:* ${order.Customer_Phone}` : null,
+    `*Product:* ${order.Device_Description || order.Product_SKU || '—'}`,
+    order.Amount > 0 ? `*Amount:* AED ${Number(order.Amount).toLocaleString()}` : null,
+    `*Store:* ${order.Location || 'Dubai — HQ'}`,
+    order.Notes ? `*Notes:* ${order.Notes}` : null,
+    '',
+    'Please dispatch from Sharjah warehouse. 📦',
+    '— Rekart OMS',
+  ].filter((l) => l !== null);
+  const msg = encodeURIComponent(lines.join('\n'));
+  return `https://wa.me/${WAREHOUSE_WHATSAPP}?text=${msg}`;
+}
+
 export default function OrderDesk() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null); // order to notify warehouse about
 
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -98,6 +123,10 @@ export default function OrderDesk() {
           ? 'Order punched & inventory updated'
           : 'Order punched',
       );
+      // Show WhatsApp notify card for Buy / Rent orders (need warehouse dispatch)
+      if (WAREHOUSE_SERVICES.has(form.Service_Type)) {
+        setLastOrder({ ...form, ...res, Order_ID: res.Order_ID || res.ID });
+      }
       setForm(EMPTY_FORM);
       setSelectedProduct(null);
       refreshAll();
@@ -158,6 +187,33 @@ export default function OrderDesk() {
         <StatCard icon={Clock} color="amber" value={stats.pending} label="Pending" />
         <StatCard icon={CheckCircle} color="purple" value={stats.completedToday} label="Completed Today" />
       </div>
+
+      {/* ── Warehouse Notify Card ── shown after Buy/Rent order is punched */}
+      {lastOrder && (
+        <div className="wh-notify-card">
+          <div className="wh-notify-icon">📦</div>
+          <div className="wh-notify-body">
+            <div className="wh-notify-title">
+              Notify Warehouse — <span>{lastOrder.Order_ID}</span>
+            </div>
+            <div className="wh-notify-detail">
+              {lastOrder.Service_Type} · {lastOrder.Device_Description || lastOrder.Product_SKU || 'No product'} · {lastOrder.Customer_Name}
+            </div>
+          </div>
+          <a
+            className="btn btn-whatsapp"
+            href={buildWhatsAppLink(lastOrder)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setLastOrder(null)}
+          >
+            <MessageCircle size={15} /> Send WhatsApp
+          </a>
+          <button className="wh-notify-dismiss" onClick={() => setLastOrder(null)} title="Dismiss">
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       <div className="oms-two-col">
         {/* ── Order Form ── */}
